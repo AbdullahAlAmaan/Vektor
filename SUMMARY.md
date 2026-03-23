@@ -4,7 +4,7 @@
 
 ---
 
-## Current Status: Phases 1–7 Complete ✅ — MVP DONE
+## Current Status: Phases 1–7 Complete ✅ — MVP DONE + Dashboard Built
 
 ---
 
@@ -208,6 +208,47 @@ Results persisted to `EvaluationResult` table.
 
 ---
 
+#### Session 2 — 2026-03-23 — Dashboard + Evaluation API ✅
+
+**New: `services/dashboard/` — Next.js 14 App Router (port 3001)**
+
+A read-only monitoring dashboard built on top of the existing API. Pages:
+
+- `/` — Overview: system health checks (Postgres, Redis, Kafka), KPI cards (Top-3 Accuracy, MRR, contributors, issues), contributor leaderboard, animated metric counters
+- `/contributors` — Contributor list with expertise summaries
+- `/contributors/[id]` — Individual contributor profile: expertise radar chart, label affinities, recommendation feed
+- `/evaluation` — Evaluation history: table of all `EvaluationResult` runs with Top-1/3/5 and MRR metrics
+
+**New: `services/api/src/routes/evaluation.ts`**
+- `GET /evaluation/results` — returns last 50 eval runs from `EvaluationResult` table, newest first
+- Registered in `services/api/src/index.ts` at prefix `/evaluation`
+
+**Dashboard tech:**
+- Next.js 14 App Router (server + client components)
+- Tailwind CSS, Recharts (charts), Framer Motion (animations), Lucide React (icons)
+- Fetches from API at `localhost:3000`
+- Key RSC lesson: pass rendered JSX elements as props to client components, not component functions (RSC serialization constraint)
+
+**How to run the full stack:**
+```bash
+# Terminal 1 — infrastructure (already running if docker compose up was run)
+docker compose up -d postgres redis redpanda redpanda-console
+
+# Terminal 2 — API
+npm run dev:api          # localhost:3000
+
+# Terminal 3 — Dashboard
+cd services/dashboard && npm run dev   # localhost:3001
+
+# Optional — Kafka UI
+open http://localhost:8080
+
+# Optional — Prisma Studio (DB browser)
+npx prisma studio        # localhost:5555
+```
+
+---
+
 ## Phase 2+ (Not Built — Do Not Start Yet)
 - TF-IDF text similarity (Python ML worker, adds 0.20 weight)
 - Issue → Contributor recommendation (reverse scorer)
@@ -219,10 +260,13 @@ Results persisted to `EvaluationResult` table.
 ## Restart Checklist (after reboot)
 ```bash
 cd /Users/abdullahalamaan/Documents/GitHub/Vektor
-docker compose up -d postgres redis redpanda
+docker compose up -d postgres redis redpanda redpanda-console
 docker compose ps   # wait for all 'healthy'
-# Optional: re-run feature worker or API as needed
-npx tsx services/feature-worker/src/index.ts
-npx tsx services/api/src/index.ts
+
+# Terminal 1
+npm run dev:api                          # API → localhost:3000
+
+# Terminal 2
+cd services/dashboard && npm run dev     # Dashboard → localhost:3001
 ```
 No migration needed — data persists in Docker volume `vektor_postgres_data`.

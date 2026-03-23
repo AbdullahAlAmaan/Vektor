@@ -4,6 +4,7 @@ import { PrismaClient } from '@prisma/client';
 import { contributorsRoutes } from './routes/contributors';
 import { reposRoutes } from './routes/repos';
 import { healthRoutes } from './routes/health';
+import { evaluationRoutes } from './routes/evaluation';
 import { errorHandler } from './middleware/error-handler';
 
 const prisma = new PrismaClient();
@@ -16,6 +17,7 @@ async function buildServer() {
   await app.register(contributorsRoutes, { prisma, prefix: '/contributors' });
   await app.register(reposRoutes, { prisma, prefix: '/repos' });
   await app.register(healthRoutes, { prisma });
+  await app.register(evaluationRoutes, { prisma, prefix: '/evaluation' });
 
   return app;
 }

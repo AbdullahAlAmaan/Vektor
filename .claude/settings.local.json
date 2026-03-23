@@ -9,7 +9,20 @@
       "Bash(docker info:*)",
       "Bash(cp:*)",
       "Bash(npx tsx:*)",
-      "Bash(sed:*)"
+      "Bash(sed:*)",
+      "Bash(sleep:*)",
+      "Bash(cat:*)",
+      "Bash(claude mcp:*)",
+      "Bash(npx:*)",
+      "Bash(npm search:*)",
+      "mcp__filesystem__directory_tree",
+      "mcp__filesystem__read_multiple_files",
+      "mcp__filesystem__read_text_file",
+      "mcp__21st-magic__21st_magic_component_inspiration",
+      "mcp__21st-magic__21st_magic_component_builder",
+      "Bash(echo \"EXIT: $?\")",
+      "Bash(npm run:*)",
+      "Bash(docker-compose ps:*)"
     ]
   }
 }
