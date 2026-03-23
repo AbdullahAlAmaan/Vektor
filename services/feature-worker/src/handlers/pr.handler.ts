@@ -5,7 +5,19 @@ export async function handlePullRequestEvent(
   prisma: PrismaClient,
   event: PullRequestEvent,
 ): Promise<void> {
-  const { repoId, contributorId, filesChanged, labels } = event;
+  const { repoId, filesChanged, labels } = event;
+
+  // Resolve GitHub username → Vektor internal contributorId
+  const contributor = await prisma.contributor.findUnique({
+    where: { username: event.contributorId },
+  });
+
+  if (!contributor) {
+    console.warn(`[PRHandler] Unknown contributor "${event.contributorId}", skipping PR ${event.githubId}`);
+    return;
+  }
+
+  const contributorId = contributor.id;
 
   // Upsert pull request record
   await prisma.pullRequest.upsert({
@@ -30,7 +42,6 @@ export async function handlePullRequestEvent(
   });
 
   const isMerged = event.state === 'merged';
-  // Signal = 1.0 for merged PR, 0.5 for unmerged
   const signal = isMerged ? 1.0 : 0.5;
 
   const newDomains = buildDomainVector(filesChanged);
@@ -46,7 +57,6 @@ export async function handlePullRequestEvent(
     updatedExpertise[domain] = emaUpdate(prevExpertise[domain] ?? 0, domainSignal * signal, 0.3);
   }
 
-  // Update label affinity
   const prevAffinity = (existing?.labelAffinity as Record<string, number>) ?? {};
   const updatedAffinity: Record<string, number> = { ...prevAffinity };
   for (const label of labels) {

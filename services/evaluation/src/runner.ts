@@ -1,13 +1,13 @@
 import { PrismaClient } from '@prisma/client';
 import { v4 as uuidv4 } from 'uuid';
-import { getRanker } from '@vektor/recommendation/src/ranker';
+import { scoreContributorIssue } from '@vektor/recommendation/src/scorer';
 import { computeMetrics } from './metrics';
-import { EvaluationResult } from '@vektor/shared';
+import { EvaluationResult, ContributorFeatureProfile, IssueFeatureProfile } from '@vektor/shared';
 
-export async function runEvaluation(prisma: PrismaClient): Promise<Omit<EvaluationResult, 'id' | 'runAt'>> {
-  const ranker = getRanker(prisma);
-
-  // Find closed issues with known assignees
+export async function runEvaluation(
+  prisma: PrismaClient,
+): Promise<Omit<EvaluationResult, 'id' | 'runAt'>> {
+  // Find closed issues with known assignees and feature profiles
   const closedIssues = await prisma.issue.findMany({
     where: {
       state: 'closed',
@@ -25,34 +25,36 @@ export async function runEvaluation(prisma: PrismaClient): Promise<Omit<Evaluati
   const repoId = closedIssues[0].repoId;
   const runId = uuidv4();
 
-  // For each issue, hide the assignee and ask the ranker who should be assigned
+  console.log(`[Eval] Scoring ${closedIssues.length} closed issues against all contributors...`);
+
+  // Load all contributor profiles for this repo once (avoid N+1)
+  const contributorProfiles = await prisma.contributorFeatureProfile.findMany({
+    where: { repoId },
+  });
+
+  if (contributorProfiles.length === 0) {
+    throw new Error('No contributor feature profiles found for this repo.');
+  }
+
+  console.log(`[Eval] ${contributorProfiles.length} contributor profiles loaded.`);
+
   const rankings: Array<{ actualAssigneeId: string; rank: number | null }> = [];
 
   for (const issue of closedIssues) {
     const assigneeId = issue.assigneeId!;
+    const issueProfile = issue.featureProfile as unknown as IssueFeatureProfile;
 
-    // Get all contributors who have profiles in this repo
-    const contributors = await prisma.contributorFeatureProfile.findMany({
-      where: { repoId },
-      select: { contributorId: true },
+    // Score every contributor against this closed issue directly (no open/closed filter)
+    const scored = contributorProfiles.map((cp) => {
+      const profile = cp as unknown as ContributorFeatureProfile;
+      const breakdown = scoreContributorIssue(profile, issueProfile, issue.githubCreatedAt);
+      return { contributorId: cp.contributorId, score: breakdown.total };
     });
 
-    let rank: number | null = null;
-    let position = 1;
-
-    // Score all contributors for this issue using the ranker's scorer
-    const scored: Array<{ contributorId: string; score: number }> = [];
-    for (const { contributorId } of contributors) {
-      const recs = await ranker.getRecommendations(contributorId, repoId, contributors.length);
-      const match = recs.find((r) => r.issueId === issue.id);
-      if (match) {
-        scored.push({ contributorId, score: match.score });
-      }
-    }
-
     scored.sort((a, b) => b.score - a.score);
+
     const idx = scored.findIndex((s) => s.contributorId === assigneeId);
-    rank = idx >= 0 ? idx + 1 : null;
+    const rank = idx >= 0 ? idx + 1 : null;
 
     rankings.push({ actualAssigneeId: assigneeId, rank });
   }

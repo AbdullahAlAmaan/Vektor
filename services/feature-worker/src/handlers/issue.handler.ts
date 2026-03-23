@@ -7,6 +7,15 @@ export async function handleIssueEvent(
 ): Promise<void> {
   const { repoId, githubId } = event;
 
+  // Resolve assignee GitHub username → Vektor internal ID
+  let resolvedAssigneeId: string | undefined;
+  if (event.assigneeId) {
+    const assignee = await prisma.contributor.findUnique({
+      where: { username: event.assigneeId },
+    });
+    resolvedAssigneeId = assignee?.id;
+  }
+
   // Upsert issue record
   const issue = await prisma.issue.upsert({
     where: { githubIssueId_repoId: { githubIssueId: githubId, repoId } },
@@ -15,6 +24,7 @@ export async function handleIssueEvent(
       body: event.body,
       state: event.state,
       labels: event.labels,
+      assigneeId: resolvedAssigneeId,
       githubUpdatedAt: new Date(event.updatedAt),
     },
     create: {
@@ -24,7 +34,7 @@ export async function handleIssueEvent(
       body: event.body,
       state: event.state,
       labels: event.labels,
-      assigneeId: event.assigneeId ?? undefined,
+      assigneeId: resolvedAssigneeId,
       number: event.number,
       githubCreatedAt: new Date(event.createdAt),
       githubUpdatedAt: new Date(event.updatedAt),
@@ -40,15 +50,7 @@ export async function handleIssueEvent(
   // Upsert issue feature profile
   await prisma.issueFeatureProfile.upsert({
     where: { issueId: issue.id },
-    update: {
-      labelVector,
-      domainTags: {},
-    },
-    create: {
-      issueId: issue.id,
-      repoId,
-      labelVector,
-      domainTags: {},
-    },
+    update: { labelVector, domainTags: {} },
+    create: { issueId: issue.id, repoId, labelVector, domainTags: {} },
   });
 }
