@@ -1,0 +1,147 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Repository {
+  id              String        @id @default(cuid())
+  githubRepoId    Int           @unique
+  owner           String
+  name            String
+  fullName        String        @unique
+  defaultBranch   String        @default("main")
+  language        String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  lastIngestedAt  DateTime?
+  contributors    Contributor[]
+  commits         Commit[]
+  issues          Issue[]
+  pullRequests    PullRequest[]
+}
+
+model Contributor {
+  id           String                      @id @default(cuid())
+  githubUserId Int                         @unique
+  username     String                      @unique
+  displayName  String?
+  avatarUrl    String?
+  createdAt    DateTime                    @default(now())
+  updatedAt    DateTime                    @updatedAt
+  repos        Repository[]
+  commits      Commit[]
+  pullRequests PullRequest[]
+  assignedIssues Issue[]                   @relation("assignee")
+  featureProfiles ContributorFeatureProfile[]
+  snapshots    RecommendationSnapshot[]
+}
+
+model Commit {
+  id            String      @id @default(cuid())
+  sha           String      @unique
+  repoId        String
+  contributorId String
+  message       String      @db.Text
+  filesChanged  String[]
+  additions     Int         @default(0)
+  deletions     Int         @default(0)
+  committedAt   DateTime
+  createdAt     DateTime    @default(now())
+  repo          Repository  @relation(fields: [repoId], references: [id])
+  contributor   Contributor @relation(fields: [contributorId], references: [id])
+}
+
+model Issue {
+  id              String               @id @default(cuid())
+  githubIssueId   Int
+  repoId          String
+  title           String
+  body            String?              @db.Text
+  state           String               @default("open")
+  labels          String[]
+  assigneeId      String?
+  number          Int
+  githubCreatedAt DateTime
+  githubUpdatedAt DateTime
+  closedAt        DateTime?
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+  @@unique([githubIssueId, repoId])
+  repo            Repository           @relation(fields: [repoId], references: [id])
+  assignee        Contributor?         @relation("assignee", fields: [assigneeId], references: [id])
+  featureProfile  IssueFeatureProfile?
+}
+
+model PullRequest {
+  id              String      @id @default(cuid())
+  githubPrId      Int
+  repoId          String
+  contributorId   String
+  title           String
+  body            String?     @db.Text
+  state           String
+  labels          String[]
+  filesChanged    String[]
+  mergedAt        DateTime?
+  githubCreatedAt DateTime
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  @@unique([githubPrId, repoId])
+  repo            Repository  @relation(fields: [repoId], references: [id])
+  contributor     Contributor @relation(fields: [contributorId], references: [id])
+}
+
+model ContributorFeatureProfile {
+  id                  String      @id @default(cuid())
+  contributorId       String
+  repoId              String
+  expertiseVector     Json
+  labelAffinity       Json
+  domainScores        Json
+  recencyScore        Float       @default(0)
+  contributionVolume  Int         @default(0)
+  modelVersion        String      @default("v1")
+  updatedAt           DateTime    @updatedAt
+  @@unique([contributorId, repoId])
+  contributor         Contributor @relation(fields: [contributorId], references: [id])
+}
+
+model IssueFeatureProfile {
+  id             String   @id @default(cuid())
+  issueId        String   @unique
+  repoId         String
+  labelVector    Json
+  domainTags     Json
+  tfidfVector    Json?
+  complexityHint String?
+  updatedAt      DateTime @updatedAt
+  issue          Issue    @relation(fields: [issueId], references: [id])
+}
+
+model RecommendationSnapshot {
+  id                   String      @id @default(cuid())
+  contributorId        String
+  repoId               String
+  recommendedIssueIds  String[]
+  scores               Json
+  modelVersion         String      @default("v1")
+  generatedAt          DateTime    @default(now())
+  contributor          Contributor @relation(fields: [contributorId], references: [id])
+}
+
+model EvaluationResult {
+  id           String   @id @default(cuid())
+  repoId       String
+  runId        String
+  top1Accuracy Float
+  top3Accuracy Float
+  top5HitRate  Float
+  mrr          Float
+  sampleSize   Int
+  modelVersion String
+  runAt        DateTime @default(now())
+}

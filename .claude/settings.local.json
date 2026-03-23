@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls:*)",
+      "Bash(npm install:*)",
+      "Bash(docker compose:*)",
+      "Bash(npx prisma:*)",
+      "Bash(cd:*)",
+      "Bash(docker info:*)",
+      "Bash(cp:*)",
+      "Bash(npx tsx:*)"
+    ]
+  }
+}
