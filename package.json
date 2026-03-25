@@ -2,17 +2,24 @@
   "name": "vektor",
   "version": "0.1.0",
   "private": true,
-  "workspaces": ["packages/*", "services/*"],
+  "workspaces": ["frontend", "backend/packages/*", "backend/services/*"],
   "scripts": {
     "build": "tsc -b",
-    "dev:api": "tsx watch services/api/src/index.ts",
-    "dev:ingestion": "tsx watch services/ingestion/src/index.ts",
-    "dev:feature-worker": "tsx watch services/feature-worker/src/index.ts",
-    "dev:recommendation": "tsx watch services/recommendation/src/index.ts",
+    "dev:api": "node --env-file=.env --watch --require tsx/cjs backend/services/api/src/index.ts",
+    "dev:ingestion": "node --env-file=.env --watch --require tsx/cjs backend/services/ingestion/src/index.ts",
+    "dev:feature-worker": "node --env-file=.env --watch --require tsx/cjs backend/services/feature-worker/src/index.ts",
+    "dev:recommendation": "node --env-file=.env --watch --require tsx/cjs backend/services/recommendation/src/index.ts",
+    "dev:frontend": "cd frontend && next dev -p 3001",
+    "db:migrate": "prisma migrate dev --schema=backend/prisma/schema.prisma",
+    "db:generate": "prisma generate --schema=backend/prisma/schema.prisma",
+    "db:studio": "prisma studio --schema=backend/prisma/schema.prisma",
     "lint": "eslint . --ext .ts",
     "format": "prettier --write .",
     "test": "vitest run",
     "test:watch": "vitest"
+  },
+  "prisma": {
+    "schema": "./backend/prisma/schema.prisma"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

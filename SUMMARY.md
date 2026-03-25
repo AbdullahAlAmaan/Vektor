@@ -4,7 +4,7 @@
 
 ---
 
-## Current Status: Phases 1–7 Complete ✅ — MVP DONE + Dashboard Built
+## Current Status: Phases 2–6 Complete ✅ — Full Post-MVP Feature Stack
 
 ---
 
@@ -249,11 +249,135 @@ npx prisma studio        # localhost:5555
 
 ---
 
-## Phase 2+ (Not Built — Do Not Start Yet)
-- TF-IDF text similarity (Python ML worker, adds 0.20 weight)
-- Issue → Contributor recommendation (reverse scorer)
-- Workload penalty
-- pgvector embeddings
+#### Session 3 — 2026-03-25 — Phase 2: TF-IDF Text Similarity ✅
+
+**TF-IDF ML Worker — wired into recommendation pipeline**
+
+- Added `compute_tfidf_batch()` to `ml/src/tfidf.py` — fits one vectorizer over full corpus (contributor + all issues), returns all similarities in a single call (O(1) network trips vs O(N) for pairwise)
+- Added `POST /score/tfidf/batch` endpoint to `ml/src/scorer.py`
+- Added `ml-scorer` Docker service to `docker-compose.yml` (port 8000, builds from `ml/`)
+- Added `ML_SCORER_URL` env var (default `http://localhost:8000`) to `env.ts` + `.env.example`
+- Created `services/recommendation/src/ml-client.ts`:
+  - `batchTfidfSimilarity(contributorText, issueTexts)` — HTTP client with 5s timeout + graceful fallback to 0 on failure
+  - `buildContributorText(commitMessages)` — concatenates last 200 commit messages
+  - `buildIssueText(title, body)` — joins issue title + body
+- Updated `scorer.ts` (v2): added `TEXT_SIMILARITY: 0.20` weight — scoring formula now sums to 1.00
+  - `textSimilarity` param defaults to 0 (backward-compatible — eval runner uses 0 without ML service)
+- Updated `ranker.ts`: fetches contributor's last 200 commit messages, builds issue texts, calls ML batch endpoint, passes similarities to scorer
+- Updated `RankedIssue.breakdown` type to include `textSimilarity: number` (shared types + dashboard API types)
+- Updated dashboard `/contributors/[id]` page to display `text` column in recommendation breakdown
+
+**Scoring formula (v2):**
+```
+score = 0.35 × domain_match          (cosine similarity)
+      + 0.25 × label_affinity_match  (dot product)
+      + 0.20 × text_similarity       (TF-IDF cosine — NEW)
+      + 0.15 × recency_alignment     (exp decay)
+      + 0.05 × freshness_bonus
+```
+
+**How to start the ML scorer:**
+```bash
+# Option 1 — Docker (recommended)
+docker compose up -d ml-scorer
+# Verify: curl http://localhost:8000/health
+
+# Option 2 — local Python
+cd ml && pip install -r requirements.txt
+uvicorn src.scorer:app --port 8000
+```
+
+#### Phase 3 — Issue → Contributor Recommendation ✅
+
+- Added `RankedContributor` type to `packages/shared/src/types/index.ts`
+- Added `issueRecommendations` cache key + `ISSUE_RECOMMENDATIONS` TTL to shared Redis client
+- Added `getIssueContributors(issueId, repoId, topN)` to `services/recommendation/src/ranker.ts`:
+  - Fetches issue feature profile and all contributor profiles for the repo
+  - Builds each contributor's commit corpus (last 200 messages) in one query via `corpusMap`
+  - One batch TF-IDF call: issue text as "contributor", all contributor corpora as "issues" (cosine symmetry)
+  - Applies workload penalty per contributor from a single `groupBy` query
+- Added `getCachedIssueRecommendations` / `setCachedIssueRecommendations` to `cache.ts`
+- Created `services/api/src/routes/issues.ts` — `GET /issues/:id/recommendations?limit=10`
+- Registered at prefix `/issues` in `services/api/src/index.ts`
+- Fixed pre-existing bug: `evaluation.ts` was ordering by `createdAt` (wrong) → corrected to `runAt`
+
+**Verified:**
+- `GET /issues/:id/recommendations` returns ranked contributors with full breakdown
+- `X-Cache: HIT` on second request confirmed
+- Workload penalty visible: contributor with 1 open issue shows `workloadPenalty: 0.04`
+
+#### Phase 4 — Workload Penalty ✅
+
+- Updated `services/recommendation/src/scorer.ts` (v3):
+  - Added `openIssueCount` param (default 0 — backward-compatible)
+  - `workloadPenalty = min(openIssues × 0.04, 0.40)` — 4% reduction per open issue, capped at 40%
+  - Applied multiplicatively: `total = rawScore × (1 - workloadPenalty)` — preserves ranking stability
+  - Added `workloadPenalty` field to the returned breakdown
+- Updated `RankedIssue.breakdown` and `RankedContributor.breakdown` to include `workloadPenalty: number`
+- Both ranker methods (`getRecommendations` + `getIssueContributors`) query open issue counts and pass to scorer
+- Dashboard `RankedIssue` type updated
+
+**Scoring formula (v3 — final):**
+```
+rawScore = 0.35 × domain_match
+         + 0.25 × label_affinity_match
+         + 0.20 × text_similarity        (TF-IDF)
+         + 0.15 × recency_alignment
+         + 0.05 × freshness_bonus
+finalScore = rawScore × (1 − workloadPenalty)
+workloadPenalty = min(openIssues × 0.04, 0.40)
+```
+
+**New API endpoint:**
+```
+GET /issues/:id/recommendations?limit=10
+→ Returns RankedContributor[] — who should be assigned this issue
+```
+
+#### Phase 5 — Issue Difficulty Estimation ✅
+
+- Added `computeComplexityHint(labels, body)` to `services/feature-worker/src/handlers/issue.handler.ts`
+  - Label heuristics: "good first issue", "beginner", "trivial" → `easy`; "breaking", "security", "performance" → `hard`
+  - Body length fallback: < 300 chars → easy, > 1200 → hard, else medium
+  - Stored in `IssueFeatureProfile.complexityHint` (column already existed in schema)
+- Added `complexityHint: string | null` to `RankedIssue` type — returned with every recommendation
+- Updated `getRecommendations()` to accept optional `difficulty?: 'easy'|'medium'|'hard'` filter
+  - Passes filter into the Prisma `where` clause — no extra query, zero perf cost
+  - Difficulty-filtered responses bypass Redis cache (they're a subset, not the full result)
+- Updated `GET /contributors/:id/recommendations` to accept `?difficulty=easy|medium|hard`
+- Created `scripts/backfill-complexity.ts` — populated all 3794 existing issue profiles
+  - Distribution: **easy=1374, medium=1798, hard=622**
+
+**Verified:** `?difficulty=easy` returns only issues with `complexityHint: "easy"` ✅
+
+#### Phase 6 — pgvector Dense Embeddings ✅
+
+**Infrastructure:**
+- Updated `docker-compose.yml` postgres to `pgvector/pgvector:pg16` (drop-in, data volume preserved)
+- Added `sentence-transformers==2.6.1` to `ml/requirements.txt` (model: `all-MiniLM-L6-v2`, 384 dims)
+- Created `ml/src/embedder.py` — singleton model loader + `embed_text` / `embed_texts` functions
+- Added `POST /embed` and `POST /embed/batch` endpoints to `ml/src/scorer.py`
+- Created `scripts/enable-pgvector.ts` — enables `vector` extension, adds `embedding vector(384)` columns, creates IVFFlat indexes
+- Created `scripts/generate-embeddings.ts` — batches 64 texts per ML call, stores via `$executeRawUnsafe`
+
+**TypeScript integration:**
+- Created `services/recommendation/src/embed-client.ts` — `getEmbedding`, `batchEmbeddings`, `vectorSimilarity`, `toVectorLiteral`
+- Updated `services/recommendation/src/ranker.ts`:
+  - `getRecommendations`: checks if contributor has embedding → uses pgvector cosine (`<=>`) → falls back to TF-IDF
+  - `getIssueContributors`: checks if any contributor has embedding → uses pgvector → falls back to TF-IDF
+  - Fallback is automatic and silent — old data always works
+
+**Embedding generation results:**
+- 3794 issue profiles embedded ✅
+- 328 contributor profiles embedded ✅
+
+**Verified:** pgvector ANN query returns top-3 contributors with cosine similarities (0.51, 0.47, 0.43) ✅
+
+**How to run for a fresh dataset:**
+```bash
+npx tsx scripts/enable-pgvector.ts     # once per DB
+npx tsx scripts/generate-embeddings.ts  # after each ingestion run
+```
 
 ---
 

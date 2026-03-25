@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgres:16-alpine
+    image: pgvector/pgvector:pg16
     environment:
       POSTGRES_USER: vektor
       POSTGRES_PASSWORD: vektor_dev
@@ -61,6 +61,18 @@ services:
       - '8080:8080'
     depends_on:
       - redpanda
+
+  ml-scorer:
+    build:
+      context: ./backend/ml
+      dockerfile: Dockerfile
+    ports:
+      - '8000:8000'
+    healthcheck:
+      test: ['CMD-SHELL', 'curl -f http://localhost:8000/health || exit 1']
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
 volumes:
   postgres_data:
