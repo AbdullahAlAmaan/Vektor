@@ -32,6 +32,10 @@ export interface FeatureProfile {
 export interface RankedIssue {
   issueId: string;
   score: number;
+  complexityHint?: string | null;
+  issueTitle?: string | null;
+  issueNumber?: number | null;
+  issueLabels?: string[];
   breakdown: {
     domainMatch: number;
     labelAffinityMatch: number;

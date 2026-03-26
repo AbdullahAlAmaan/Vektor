@@ -2,13 +2,28 @@
 // Never duplicate this logic elsewhere.
 
 export const DOMAIN_PATTERNS: Record<string, RegExp[]> = {
-  backend:  [/src\/api/, /src\/server/, /routes?\//],
-  frontend: [/src\/ui/, /src\/components/, /src\/pages/],
-  auth:     [/auth/, /login/, /oauth/, /jwt/],
-  database: [/migrations?/, /prisma/, /schema\.sql/],
-  testing:  [/\.test\.ts$/, /\.spec\.ts$/, /__tests__/],
-  ci:       [/\.github\//, /Dockerfile/, /docker-compose/],
-  docs:     [/README/, /docs\//],
+  backend: [
+    /src\/api/, /src\/server/, /routes?\//, /lib\/router/,
+    /lib\/middleware/, /middleware\//, /lib\/express/, /lib\/application/,
+    /lib\/request/, /lib\/response/, /lib\/utils/, /^lib\//, /^src\/lib\//,
+    /controller/, /handler/, /service\//, /^app\.(js|ts)$/, /^server\.(js|ts)$/,
+    /^index\.(js|ts)$/, /^src\/index/, /express/, /fastify/, /koa/, /hapi/,
+  ],
+  frontend: [
+    /src\/ui/, /src\/components/, /src\/pages/, /src\/views/, /src\/app\//,
+    /components\//, /pages\//, /views\//, /\.vue$/, /\.jsx$/, /\.tsx$/,
+    /styles\//, /css\//, /scss\//, /tailwind/, /webpack/, /vite\.config/,
+    /public\//, /assets\//,
+  ],
+  auth: [/auth/, /login/, /oauth/, /jwt/, /session/, /passport/, /token/, /credentials/, /permission/, /rbac/],
+  database: [/migrations?/, /prisma/, /schema\.sql/, /knex/, /sequelize/, /mongoose/, /typeorm/, /^models\//, /^src\/models\//],
+  testing: [
+    /\.test\.ts$/, /\.spec\.ts$/, /__tests__/, /\.test\.js$/, /\.spec\.js$/,
+    /^test\//, /^tests\//, /^spec\//, /test\.(js|ts)$/, /\.test\.(js|ts)x?$/,
+    /mocha/, /jest\.config/, /vitest\.config/,
+  ],
+  ci: [/\.github\//, /Dockerfile/, /docker-compose/, /\.travis\.yml/, /\.circleci/, /Makefile/, /\.gitlab-ci/, /workflow/],
+  docs: [/README/, /docs\//, /CHANGELOG/, /HISTORY/, /examples\//, /\.md$/, /CONTRIBUTING/],
 };
 
 export function mapFilesToDomains(files: string[]): string[] {

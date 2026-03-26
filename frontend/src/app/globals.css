@@ -3,13 +3,41 @@
 @tailwind utilities;
 
 @layer base {
+  :root {
+    --background: 9 9 11;
+    --foreground: 244 244 245;
+    --card: 24 24 27;
+    --card-foreground: 244 244 245;
+    --popover: 24 24 27;
+    --popover-foreground: 244 244 245;
+    --primary: 99 102 241;
+    --primary-foreground: 255 255 255;
+    --secondary: 39 39 42;
+    --secondary-foreground: 244 244 245;
+    --muted: 39 39 42;
+    --muted-foreground: 113 113 122;
+    --accent: 39 39 42;
+    --accent-foreground: 244 244 245;
+    --destructive: 239 68 68;
+    --destructive-foreground: 255 255 255;
+    --border: 39 39 42;
+    --input: 39 39 42;
+    --ring: 99 102 241;
+    --radius: 0.5rem;
+  }
+
   * {
-    border-color: theme('colors.zinc.800');
+    border-color: rgb(var(--border) / 1);
   }
   body {
-    background-color: theme('colors.zinc.950');
-    color: theme('colors.zinc.100');
+    background-color: rgb(var(--background));
+    color: rgb(var(--foreground));
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
+}
+
+.mask-fade-bottom {
+  -webkit-mask-image: linear-gradient(to bottom, black 60%, transparent 100%);
+  mask-image: linear-gradient(to bottom, black 60%, transparent 100%);
 }

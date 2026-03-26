@@ -9,32 +9,33 @@ function pct(n: number) {
   return `${(n * 100).toFixed(1)}%`;
 }
 
-const FALLBACK = [{
-  id: 'fallback',
-  runAt: '2026-03-23T20:26:14Z',
-  top1Accuracy: 0.4116,
-  top3Accuracy: 0.8056,
-  top5HitRate: 0.8636,
-  mrr: 0.5670,
-  sampleSize: 396,
-  modelVersion: 'v1',
-  repoId: 'expressjs/express',
-}];
-
 export default async function EvaluationPage({
   searchParams,
 }: {
   searchParams: { repoId?: string };
 }) {
-  const [repos, rawResults] = await Promise.all([
+  const [repos, data] = await Promise.all([
     getRepos().catch(() => []),
-    getEvaluationResults().catch(() => null),
+    getEvaluationResults().catch(() => []),
   ]);
   const repoId = searchParams.repoId ?? repos[0]?.id;
   const repo = repos.find((r) => r.id === repoId) ?? repos[0];
-  const results = rawResults;
-  const data = results && results.length > 0 ? results : FALLBACK;
   const latest = data[0];
+
+  if (!latest) {
+    return (
+      <div className="relative space-y-8">
+        <BGPattern variant="dots" mask="fade-edges" fill="#27272a" size={28} />
+        <div className="relative z-10">
+          <h1 className="text-2xl font-bold text-white tracking-tight">Evaluation</h1>
+        </div>
+        <div className="relative z-10 flex flex-col items-center justify-center py-24 text-zinc-600">
+          <p className="text-sm">No evaluation runs found.</p>
+          <p className="text-xs mt-1">Run <span className="font-mono text-zinc-500">npx tsx scripts/run-eval.ts</span> to generate results.</p>
+        </div>
+      </div>
+    );
+  }
 
   const kpis = [
     {

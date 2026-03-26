@@ -55,8 +55,22 @@ export async function contributorsRoutes(
     if (!difficulty) {
       const cached = await getCachedRecommendations(id, repoId);
       if (cached) {
+        const slice = cached.slice(0, Number(limit));
+        // Enrich cached results with issue details
+        const issueIds = slice.map((r) => r.issueId);
+        const issueDetails = await opts.prisma.issue.findMany({
+          where: { id: { in: issueIds } },
+          select: { id: true, title: true, number: true, labels: true },
+        });
+        const detailsMap = new Map(issueDetails.map((i) => [i.id, i]));
+        const enriched = slice.map((r) => ({
+          ...r,
+          issueTitle: detailsMap.get(r.issueId)?.title ?? null,
+          issueNumber: detailsMap.get(r.issueId)?.number ?? null,
+          issueLabels: detailsMap.get(r.issueId)?.labels ?? [],
+        }));
         reply.header('X-Cache', 'HIT');
-        return reply.send(cached.slice(0, Number(limit)));
+        return reply.send(enriched);
       }
     }
 
@@ -71,7 +85,21 @@ export async function contributorsRoutes(
       await setCachedRecommendations(id, repoId, recommendations);
     }
 
+    // Enrich with issue details for display purposes
+    const issueIds = recommendations.map((r) => r.issueId);
+    const issueDetails = await opts.prisma.issue.findMany({
+      where: { id: { in: issueIds } },
+      select: { id: true, title: true, number: true, labels: true },
+    });
+    const detailsMap = new Map(issueDetails.map((i) => [i.id, i]));
+    const enriched = recommendations.map((r) => ({
+      ...r,
+      issueTitle: detailsMap.get(r.issueId)?.title ?? null,
+      issueNumber: detailsMap.get(r.issueId)?.number ?? null,
+      issueLabels: detailsMap.get(r.issueId)?.labels ?? [],
+    }));
+
     reply.header('X-Cache', 'MISS');
-    return reply.send(recommendations);
+    return reply.send(enriched);
   });
 }

@@ -68,7 +68,15 @@
       "Bash(REPO_ID=\"cmn5td0il0000xzmgwmkjkuui\" curl -s \"http://localhost:3000/repos/$REPO_ID/contributors\")",
       "Bash(python3 -c \":*)",
       "Bash(curl -s \"http://localhost:3000/repos/cmn5td0il0000xzmgwmkjkuui/contributors\")",
-      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); [print\\(x[''''id''''], x[''''username'''']\\) for x in d[:3]]\")"
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); [print\\(x[''''id''''], x[''''username'''']\\) for x in d[:3]]\")",
+      "Bash(curl -s http://localhost:3000/health echo \"\" echo \"=== Repos list ===\")",
+      "Bash(python3 -c \"import json,sys; [print\\(f\"\"  {r[''''fullName'''']} \\({r[''''id'''']}\\)\"\"\\) for r in json.load\\(sys.stdin\\)]\" echo \"\" echo \"=== POST ingest \\(test\\) ===\")",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(f\"\"  jobId={d[''''jobId'''']}\"\"\\)\" echo \"\" echo \"=== CORS headers ===\")",
+      "Bash(curl -s -I http://localhost:3000/repos)"
     ]
-  }
+  },
+  "enabledMcpjsonServers": [
+    "supabase"
+  ],
+  "enableAllProjectMcpServers": true
 }
